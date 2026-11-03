@@ -1,0 +1,127 @@
+from indicators import ema
+
+NAME = "EMA Cross"
+DESCRIPTION = "Fast EMA crosses slow EMA / Schnelle EMA kreuzt langsame EMA"
+PARAMS = {"fast": 9, "slow": 21}
+
+
+def signal(df, p):
+    """df: closed candles (open, high, low, close, volume). Return 'long', 'short' or None."""
+    f, s = ema(df.close, p["fast"]), ema(df.close, p["slow"])
+    if f.iloc[-2] <= s.iloc[-2] and f.iloc[-1] > s.iloc[-1]: return "long"
+    if f.iloc[-2] >= s.iloc[-2] and f.iloc[-1] < s.iloc[-1]: return "short"
+
+from indicators import rsi
+
+NAME = "RSI Reversal"
+DESCRIPTION = "RSI leaves oversold/overbought zone"
+PARAMS = {"period": 14, "low": 30, "high": 70}
+
+
+def signal(df, p):
+    r = rsi(df.close, p["period"])
+    if r.iloc[-2] < p["low"] <= r.iloc[-1]: return "long"
+    if r.iloc[-2] > p["high"] >= r.iloc[-1]: return "short"
+
+from indicators import macd
+
+NAME = "MACD Cross"
+DESCRIPTION = "MACD line crosses signal line"
+PARAMS = {"fast": 12, "slow": 26, "signal": 9}
+
+
+def signal(df, p):
+    m, s, _ = macd(df.close, p["fast"], p["slow"], p["signal"])
+    if m.iloc[-2] <= s.iloc[-2] and m.iloc[-1] > s.iloc[-1]: return "long"
+    if m.iloc[-2] >= s.iloc[-2] and m.iloc[-1] < s.iloc[-1]: return "short"
+
+from indicators import bbands
+
+NAME = "Bollinger Reversion"
+DESCRIPTION = "Close back inside Bollinger band after a breakout"
+PARAMS = {"period": 20, "mult": 2.0}
+
+
+def signal(df, p):
+    up, _, lo = bbands(df.close, p["period"], p["mult"])
+    c = df.close
+    if c.iloc[-2] < lo.iloc[-2] and c.iloc[-1] >= lo.iloc[-1]: return "long"
+    if c.iloc[-2] > up.iloc[-2] and c.iloc[-1] <= up.iloc[-1]: return "short"
+
+NAME = "Donchian Breakout"
+DESCRIPTION = "Close breaks N-candle high/low"
+PARAMS = {"period": 20}
+
+
+def signal(df, p):
+    n = p["period"]
+    hh = df.high.iloc[-n - 1:-1].max()
+    ll = df.low.iloc[-n - 1:-1].min()
+    if df.close.iloc[-1] > hh: return "long"
+    if df.close.iloc[-1] < ll: return "short"
+
+from indicators import stoch
+
+NAME = "Stochastic Cross"
+DESCRIPTION = "%K crosses %D inside extreme zones"
+PARAMS = {"k": 14, "d": 3, "low": 20, "high": 80}
+
+
+def signal(df, p):
+    k, d = stoch(df, p["k"], p["d"])
+    if k.iloc[-2] <= d.iloc[-2] and k.iloc[-1] > d.iloc[-1] and k.iloc[-1] < p["low"] + 10: return "long"
+    if k.iloc[-2] >= d.iloc[-2] and k.iloc[-1] < d.iloc[-1] and k.iloc[-1] > p["high"] - 10: return "short"
+
+from indicators import adx, ema
+
+NAME = "ADX Trend"
+DESCRIPTION = "+DI/-DI cross while ADX shows a strong trend"
+PARAMS = {"period": 14, "min_adx": 22}
+
+
+def signal(df, p):
+    a, pdi, mdi = adx(df, p["period"])
+    if a.iloc[-1] < p["min_adx"]: return None
+    if pdi.iloc[-2] <= mdi.iloc[-2] and pdi.iloc[-1] > mdi.iloc[-1]: return "long"
+    if pdi.iloc[-2] >= mdi.iloc[-2] and pdi.iloc[-1] < mdi.iloc[-1]: return "short"
+
+from indicators import ichimoku
+
+NAME = "Ichimoku TK Cross"
+DESCRIPTION = "Tenkan/Kijun cross with price above/below the cloud"
+PARAMS = {"tenkan": 9, "kijun": 26, "senkou_b": 52}
+
+
+def signal(df, p):
+    t, k, sa, sb = ichimoku(df, p["tenkan"], p["kijun"], p["senkou_b"])
+    top, bot = max(sa.iloc[-1], sb.iloc[-1]), min(sa.iloc[-1], sb.iloc[-1])
+    c = df.close.iloc[-1]
+    if t.iloc[-2] <= k.iloc[-2] and t.iloc[-1] > k.iloc[-1] and c > top: return "long"
+    if t.iloc[-2] >= k.iloc[-2] and t.iloc[-1] < k.iloc[-1] and c < bot: return "short"
+
+NAME = "Volume Momentum"
+DESCRIPTION = "Strong candle with a volume spike"
+PARAMS = {"vol_period": 20, "vol_mult": 2.0, "min_body_pct": 0.5}
+
+
+def signal(df, p):
+    v = df.volume.iloc[-1]
+    avg = df.volume.iloc[-p["vol_period"] - 1:-1].mean()
+    o, c = df.open.iloc[-1], df.close.iloc[-1]
+    body = abs(c - o) / o * 100
+    if v > avg * p["vol_mult"] and body >= p["min_body_pct"]:
+        return "long" if c > o else "short"
+
+from indicators import ema, rsi
+
+NAME = "RSI + EMA200 Filter"
+DESCRIPTION = "Pullback entries in the direction of the EMA trend"
+PARAMS = {"ema": 200, "rsi": 14, "buy_below": 40, "sell_above": 60}
+
+
+def signal(df, p):
+    e = ema(df.close, p["ema"]).iloc[-1]
+    r = rsi(df.close, p["rsi"])
+    c = df.close.iloc[-1]
+    if c > e and r.iloc[-2] < p["buy_below"] <= r.iloc[-1]: return "long"
+    if c < e and r.iloc[-2] > p["sell_above"] >= r.iloc[-1]: return "short"
